@@ -1,0 +1,8 @@
+.rebar
+*.beam
+.vagrant
+Vagrantfile
+ebin/
+rel/files/
+rel/thunderl/
+deps/**/*

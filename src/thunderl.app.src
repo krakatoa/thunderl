@@ -1,0 +1,13 @@
+{application, thunderl,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  erim
+                 ]},
+  {mod, { thunderl_app, []}},
+  {env, []}
+ ]}.
