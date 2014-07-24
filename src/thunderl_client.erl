@@ -34,34 +34,52 @@ go_online(Session) ->
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({log, Kind, ServerId, Elapsed}, State) ->
-  {noreply, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info(Record = #received_packet{packet_type=presence}, State) ->
+handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State) when Type == "available" ->
+  io:format("=== thunderl_client RECV presence [type=available]~n"),
   RawPacket = Record#received_packet.raw_packet,
+  UUID = (exmpp_xml:get_attribute_node_from_list(RawPacket#xmlel.attrs, <<"from">>))#xmlattr.value,
   [_Auth, Data, _Stamp] = RawPacket#xmlel.children,
-  %% io:format("Received Presence Stanza: ~n~p~n", [Record#received_packet.raw_packet]),
+  %% io:format("NEW STANZA ~p~n", [RawPacket]),
   case Data#xmlel.name of
-    "offer" -> process_offer({Data});
+    "offer" -> process_offer({UUID, Data});
     _ -> io:format("Unhandled xmlel.name=~p~n", [Data#xmlel.name])
   end,
   {noreply, State};
-handle_info(Record = #received_packet{packet_type=message, type_attr=Type}, State) when Type =/= "error" ->
-  io:format("Received Message Stanza: ~n~p~n", [Record#received_packet.raw_packet]),
+handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State) when Type == "unavailable" ->
+  io:format("=== thunderl_client RECV presence [type=unavailable]~n"),
+  RawPacket = Record#received_packet.raw_packet,
+  UUID = (exmpp_xml:get_attribute_node_from_list(RawPacket#xmlel.attrs, <<"from">>))#xmlattr.value,
+  [Data, _Stamp] = RawPacket#xmlel.children,
+  %% io:format("NEW STANZA ~p~n", [RawPacket]),
+  case Data#xmlel.name of
+    "end" -> process_hangup({UUID, Data});
+    _ -> io:format("Unhandled xmlel.name=~p~n", [Data#xmlel.name])
+  end,
+  {noreply, State};
+handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State) when Type =/= "error" ->
+  io:format("=== thunderl_client RECV unknown presence stanza [~p]~n", [Record#received_packet.raw_packet]),
+  {noreply, State};
+handle_info(Record = #received_packet{packet_type=message,type_attr=Type}, State) when Type =/= "error" ->
+  io:format("=== thunderl_client RECV unknown message stanza [~p]~n", [Record#received_packet.raw_packet]),
   {noreply, State};
 handle_info(Info, State) ->
   io:format("Unhandled message!~n~p", [Info]),
   {noreply, State}.
 
-process_offer({Data}) ->
+process_offer({UUID, Data}) ->
   From = exmpp_xml:get_attribute_node_from_list(Data#xmlel.attrs, <<"from">>),
   To = exmpp_xml:get_attribute_node_from_list(Data#xmlel.attrs, <<"to">>),
   Children = exmpp_xml:get_child_elements(Data),
-  
-  io:format("From: ~p~n", [From]),
-  io:format("To: ~p~n", [To]).
+
+  {ok, Call} = thunderl_call:create(From, To, Children),
+  thunderl_registry:add(UUID, Call).
+
+process_hangup({UUID, _Data}) ->
+  {ok, Call} = thunderl_registry:get(UUID),
+  gen_server:call(Call, {finish}).
 
 terminate(_Reason, State) ->
   ok.

@@ -23,7 +23,6 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    %% Client = ?CHILD(client, worker),
-    %% {ok, { {one_for_one, 5, 10}, [Client]} }.
-    {ok, { {one_for_one, 5, 10}, []} }.
+    Registry = ?CHILD(thunderl_registry, worker),
+    {ok, { {one_for_one, 5, 10}, [Registry]} }.
 
