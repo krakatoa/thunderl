@@ -33,6 +33,22 @@ go_online(Session) ->
             exmpp_presence:set_status(
         exmpp_presence:available(), "Echo Ready")).
 
+handle_call({answer_call, UUID}, _From, [Session]) ->
+  %% To = <<UUID/binary, "@fs.thunderl.com">>,
+  To = UUID,
+
+  AnswerStanza = #xmlel{
+    ns = "urn:xmpp:rayo:1",
+    name='iq',
+    attrs=[ #xmlattr{name = <<"from">>, value = <<"usera@fs.thunderl.com">>},
+            #xmlattr{name = <<"to">>, value = To},
+            #xmlattr{name = <<"type">>, value = <<"set">>},
+            #xmlattr{name = <<"id">>, value = <<"iq-id-2">>} ],
+    children = [ #xmlel{name = 'answer', ns = 'urn:xmpp:rayo:1'} ]
+  },
+
+  exmpp_session:send_packet(Session, AnswerStanza),
+  {reply, ok, [Session]};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -43,11 +59,21 @@ handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, Stat
   io:format("=== thunderl_client RECV presence [type=available]~n"),
   RawPacket = Record#received_packet.raw_packet,
   UUID = (exmpp_xml:get_attribute_node_from_list(RawPacket#xmlel.attrs, <<"from">>))#xmlattr.value,
-  [_Auth, Data, _Stamp] = RawPacket#xmlel.children,
+
+  [FirstChild|[SecondChild|_Rest]] = RawPacket#xmlel.children,
+  io:format("DEBUG FirstChild.name ~p~n", [FirstChild#xmlel.name]),
+  io:format("DEBUG SecondChild.name ~p~n", [SecondChild#xmlel.name]),
+
+  %% [_Auth, Data, _Stamp] = RawPacket#xmlel.children,
   %% io:format("NEW STANZA ~p~n", [RawPacket]),
-  case Data#xmlel.name of
-    "offer" -> process_offer({UUID, Data});
-    _ -> io:format("Unhandled xmlel.name=~p~n", [Data#xmlel.name])
+  case FirstChild#xmlel.name of
+    c ->
+      case SecondChild#xmlel.name of
+        "offer" -> process_offer({UUID, SecondChild});
+        _ -> io:format("Unhandled xmlel.name=~p~n", [SecondChild#xmlel.name])
+      end;
+    "answered" -> process_answer({UUID});
+    _ -> io:format("Unhandled xmlel.name=~p~n", [FirstChild#xmlel.name])
   end,
   {noreply, State};
 handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State) when Type == "unavailable" ->
@@ -76,13 +102,16 @@ process_offer({UUID, Data}) ->
   To = exmpp_xml:get_attribute_node_from_list(Data#xmlel.attrs, <<"to">>),
   Children = exmpp_xml:get_child_elements(Data),
 
-  {ok, Call} = thunderl_call:create(From, To, Children),
+  {ok, Call} = thunderl_call:create({UUID, From, To}, Children, self()),
   thunderl_registry:add(UUID, Call).
 
 process_hangup({UUID, _Data}) ->
   Call = thunderl_registry:get_pid(UUID),
   gen_server:cast(Call, {finish}),
   thunderl_registry:delete(UUID).
+
+process_answer({UUID}) ->
+  io:format("=== thunderl_client ANSWER~n").
 
 terminate(_Reason, State) ->
   ok.
