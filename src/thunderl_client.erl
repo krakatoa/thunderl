@@ -7,6 +7,8 @@
 -include_lib("erim/include/exmpp_client.hrl").
 -include_lib("erim/include/exmpp_xml.hrl").
 
+-include("include/thunderl.hrl").
+
 connect(UserUrl, Password, Server) ->
   gen_server:start_link(?MODULE, [UserUrl, Password, Server], []).
 
@@ -78,8 +80,9 @@ process_offer({UUID, Data}) ->
   thunderl_registry:add(UUID, Call).
 
 process_hangup({UUID, _Data}) ->
-  {ok, Call} = thunderl_registry:get(UUID),
-  gen_server:call(Call, {finish}).
+  Call = thunderl_registry:get_pid(UUID),
+  gen_server:cast(Call, {finish}),
+  thunderl_registry:delete(UUID).
 
 terminate(_Reason, State) ->
   ok.

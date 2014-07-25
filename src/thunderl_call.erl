@@ -15,11 +15,11 @@ init([From, To, Children]) ->
   io:format("To: ~p~n", [To]),
   {ok, []}.
 
-handle_call({finish}, _From, State) ->
-  {stop, normal, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
+handle_cast({finish}, State) ->
+  {stop, normal, State};
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
@@ -28,6 +28,6 @@ handle_info(Info, State) ->
   {noreply, State}.
 
 terminate(_Reason, State) ->
-  io:format("Call Finished."),
+  io:format("Call Finished.~n"),
   ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

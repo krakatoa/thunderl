@@ -3,7 +3,7 @@
 
 -include("include/thunderl.hrl").
 
--export([start_link/0, add/2, get/1]).
+-export([start_link/0, add/2, get/1, get_pid/1, delete/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -11,11 +11,20 @@ start_link() ->
 
 add(UUID, Pid) ->
   io:format("=== thunderl_registry ADD ~p~p~n", [UUID, Pid]),
-  gen_server:call(?MODULE, {add, [UUID, Pid]}).
+  ok = gen_server:call(?MODULE, {add, [UUID, Pid]}).
 
 get(UUID) ->
   io:format("=== thunderl_registry GET ~p~n", [UUID]),
   gen_server:call(?MODULE, {get, [UUID]}).
+
+get_pid(UUID) ->
+  io:format("=== thunderl_registry GET_PID ~p~n", [UUID]),
+  {ok, Call} = gen_server:call(?MODULE, {get, [UUID]}),
+  Call#thunderl_call.pid.
+
+delete(UUID) ->
+  io:format("=== thunderl_registry DELETE ~p~n", [UUID]),
+  ok = gen_server:call(?MODULE, {delete, [UUID]}).
 
 init([]) ->
   io:format("=== thunderl_registry START~n"),
@@ -29,8 +38,11 @@ handle_call({add, [UUID, Pid]}, _From, Registry) ->
   NewRegistry = orddict:store(UUID, NewCall, Registry),
   {reply, ok, NewRegistry};
 handle_call({get, [UUID]}, _From, Registry) ->
-  {ok, CallPid} = orddict:get(UUID, Registry),
+  {ok, CallPid} = orddict:find(UUID, Registry),
   {reply, {ok, CallPid}, Registry};
+handle_call({delete, [UUID]}, _From, Registry) ->
+  NewRegistry = orddict:erase(UUID, Registry),
+  {reply, ok, Registry};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
