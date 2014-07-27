@@ -20,7 +20,7 @@ answer(Pid) ->
 
 handle_call({answer}, _From, State) ->
   {UUID, Client} = State,
-  ok = gen_server:call(Client, {answer_call, UUID}),
+  delayed_ok = gen_server:call(Client, {answer_call, UUID}),
   {reply, ok, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.

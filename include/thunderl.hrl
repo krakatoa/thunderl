@@ -1,1 +1,2 @@
 -include("thunderl_call.hrl").
+-include("thunderl_registry.hrl").

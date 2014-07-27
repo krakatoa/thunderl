@@ -1,1 +1,2 @@
 -record(thunderl_call, {pid}).
+-record(thunderl_command, {kind, id, from}).
