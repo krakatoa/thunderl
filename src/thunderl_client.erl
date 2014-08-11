@@ -33,12 +33,18 @@ go_online(Session) ->
             exmpp_presence:set_status(
         exmpp_presence:available(), "Echo Ready")).
 
+run_command(From, {Kind, Id, Stanza}, Session) ->
+  exmpp_session:send_packet(Session, Stanza),
+  thunderl_registry:store_command(Kind, Id, From).
+
 handle_call({answer_call, UUID}, From, [Session]) ->
-  %% -- TODO abstract this into a command_call --
-  Id = <<"iq-id-2">>, %% use uuids!
-  AnswerStanza = thunderl_rayo:answer(<<"usera@fs.thunderl.com">>, UUID, Id),
-  exmpp_session:send_packet(Session, AnswerStanza),
-  thunderl_registry:store_command(answer, Id, From),
+  {Id, Stanza} = thunderl_call_command:answer(UUID),
+  run_command(From, {answer, Id, Stanza}, Session),
+  %% {reply, ok, [Session]};
+  {noreply, [Session]};
+handle_call({hangup_call, UUID}, From, [Session]) ->
+  {Id, Stanza} = thunderl_call_command:hangup(UUID),
+  run_command(From, {hangup, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
   {noreply, [Session]};
 handle_call(_Request, _From, State) ->
@@ -115,7 +121,7 @@ process_hangup({UUID, _Data}) ->
   gen_server:cast(Call, {finish}),
   thunderl_registry:delete(UUID).
 
-process_answer({UUID}) ->
+process_answer({_UUID}) ->
   io:format("=== thunderl_client ANSWERED~n").
 
 process_command_response(Id) ->
@@ -123,7 +129,7 @@ process_command_response(Id) ->
   gen_server:reply(From, delayed_ok),
   thunderl_registry:delete_command(Id).
 
-terminate(_Reason, State) ->
+terminate(_Reason, _State) ->
   ok.
 
 code_change(_OldVsn, State, _Extra) ->

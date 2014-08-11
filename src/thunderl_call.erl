@@ -1,7 +1,7 @@
 -module(thunderl_call).
 -behaviour(gen_server).
 
--export([create/3, answer/1]).
+-export([create/3, answer/1, hangup/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -include_lib("erim/include/exmpp_client.hrl").
@@ -17,10 +17,16 @@ init({{UUID, From, To}, Children, Client}) ->
 
 answer(Pid) ->
   gen_server:call(Pid, {answer}).
+hangup(Pid) ->
+  gen_server:call(Pid, {hangup}).
 
 handle_call({answer}, _From, State) ->
   {UUID, Client} = State,
   delayed_ok = gen_server:call(Client, {answer_call, UUID}),
+  {reply, ok, State};
+handle_call({hangup}, _From, State) ->
+  {UUID, Client} = State,
+  delayed_ok = gen_server:call(Client, {hangup_call, UUID}),
   {reply, ok, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
