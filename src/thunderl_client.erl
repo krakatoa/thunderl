@@ -1,7 +1,7 @@
 -module(thunderl_client).
 -behaviour(gen_server).
 
--export([connect/3]).
+-export([connect/3, add_listener/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -include_lib("erim/include/exmpp_client.hrl").
@@ -26,34 +26,44 @@ init([UserUrl, Password, Server]) ->
   
   go_online(Session),
 
-  {ok, [Session]}.
+  {ok, Events} = gen_event:start_link(),
+  
+
+  {ok, {Session, Events}}.
 
 go_online(Session) ->
   exmpp_session:send_packet(Session,
             exmpp_presence:set_status(
         exmpp_presence:available(), "Echo Ready")).
 
+add_listener(Client, Pid) ->
+  gen_server:call(Client, {add_event_listener, Pid}).
+
 run_command(From, {Kind, Id, Stanza}, Session) ->
   exmpp_session:send_packet(Session, Stanza),
   thunderl_registry:store_command(Kind, Id, From).
 
-handle_call({answer_call, UUID}, From, [Session]) ->
+handle_call({answer_call, UUID}, From, State={Session, _Events}) ->
   {Id, Stanza} = thunderl_call_command:answer(UUID),
   run_command(From, {answer, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
-  {noreply, [Session]};
-handle_call({hangup_call, UUID}, From, [Session]) ->
+  {noreply, State};
+handle_call({hangup_call, UUID}, From, State={Session, _Events}) ->
   {Id, Stanza} = thunderl_call_command:hangup(UUID),
   run_command(From, {hangup, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
-  {noreply, [Session]};
+  {noreply, State};
+handle_call({add_event_listener, SubscriberPid}, _From, State={_Session, Events}) ->
+  FeedHandler = {thunderl_client_events, make_ref()},
+  gen_event:add_handler(Events, FeedHandler, [SubscriberPid]),
+  {reply, FeedHandler, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State) when Type == "available" ->
+handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, State={_Session, Events}) when Type == "available" ->
   io:format("=== thunderl_client RECV presence [type=available]~n"),
   RawPacket = Record#received_packet.raw_packet,
   UUID = (exmpp_xml:get_attribute_node_from_list(RawPacket#xmlel.attrs, <<"from">>))#xmlattr.value,
@@ -64,10 +74,12 @@ handle_info(Record = #received_packet{packet_type=presence,type_attr=Type}, Stat
 
   %% [_Auth, Data, _Stamp] = RawPacket#xmlel.children,
   %% io:format("NEW STANZA ~p~n", [RawPacket]),
+  io:format("@handle_info Events=~p~n", [Events]),
+
   case FirstChild#xmlel.name of
     c ->
       case SecondChild#xmlel.name of
-        "offer" -> process_offer({UUID, SecondChild});
+        "offer" -> process_offer({UUID, SecondChild}, Events);
         _ -> io:format("Unhandled xmlel.name=~p~n", [SecondChild#xmlel.name])
       end;
     "answered" -> process_answer({UUID});
@@ -108,12 +120,14 @@ handle_info(Info, State) ->
   io:format("Unhandled message!~n~p", [Info]),
   {noreply, State}.
 
-process_offer({UUID, Data}) ->
+process_offer({UUID, Data}, Events) ->
   From = exmpp_xml:get_attribute_node_from_list(Data#xmlel.attrs, <<"from">>),
   To = exmpp_xml:get_attribute_node_from_list(Data#xmlel.attrs, <<"to">>),
   Children = exmpp_xml:get_child_elements(Data),
 
   {ok, Call} = thunderl_call:create({UUID, From, To}, Children, self()),
+  io:format("gen_event:notify: ~p~n", [Events]),
+  gen_event:notify(Events, {new_call, Call}),
   thunderl_registry:add(UUID, Call).
 
 process_hangup({UUID, _Data}) ->
