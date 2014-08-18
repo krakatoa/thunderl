@@ -53,8 +53,8 @@ handle_call({hangup_call, UUID}, From, State={Session, _Events}) ->
   run_command(From, {hangup, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
   {noreply, State};
-handle_call({play_call, UUID}, From, State={Session, _Events}) ->
-  {Id, Stanza} = thunderl_call_component:play(UUID),
+handle_call({play_call, UUID, Url}, From, State={Session, _Events}) ->
+  {Id, Stanza} = thunderl_call_component:play(UUID, Url),
   run_command(From, {play, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
   {noreply, State};

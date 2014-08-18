@@ -1,7 +1,7 @@
 -module(thunderl_call).
 -behaviour(gen_server).
 
--export([play/1]).
+-export([play/2]).
 
 -export([create/3, answer/1, hangup/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -22,8 +22,8 @@ answer(Pid) ->
 hangup(Pid) ->
   gen_server:call(Pid, {hangup}).
 
-play(Pid) ->
-  gen_server:call(Pid, {play}).
+play(Pid, Url) ->
+  gen_server:call(Pid, {play, Url}).
 
 handle_call({answer}, _From, State) ->
   {UUID, Client} = State,
@@ -33,9 +33,9 @@ handle_call({hangup}, _From, State) ->
   {UUID, Client} = State,
   delayed_ok = gen_server:call(Client, {hangup_call, UUID}),
   {reply, ok, State};
-handle_call({play}, _From, State) ->
+handle_call({play, Url}, _From, State) ->
   {UUID, Client} = State,
-  delayed_ok = gen_server:call(Client, {play_call, UUID}),
+  delayed_ok = gen_server:call(Client, {play_call, UUID, Url}),
   {reply, ok, State};
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
