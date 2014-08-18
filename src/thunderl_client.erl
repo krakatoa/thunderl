@@ -53,6 +53,11 @@ handle_call({hangup_call, UUID}, From, State={Session, _Events}) ->
   run_command(From, {hangup, Id, Stanza}, Session),
   %% {reply, ok, [Session]};
   {noreply, State};
+handle_call({play_call, UUID}, From, State={Session, _Events}) ->
+  {Id, Stanza} = thunderl_call_component:play(UUID),
+  run_command(From, {play, Id, Stanza}, Session),
+  %% {reply, ok, [Session]};
+  {noreply, State};
 handle_call({add_event_listener, SubscriberPid}, _From, State={_Session, Events}) ->
   FeedHandler = {thunderl_client_events, make_ref()},
   gen_event:add_handler(Events, FeedHandler, [SubscriberPid]),
