@@ -1,6 +1,6 @@
 -module(thunderl_call_component).
 
--export([play/1]).
+-export([play/2]).
 
 play(CallUUID, Url) ->
   Id = <<"iq-id-3">>, %% use uuids!
